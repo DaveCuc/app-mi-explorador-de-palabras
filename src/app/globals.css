@@ -1,0 +1,97 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&family=Short+Stack&display=swap');
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --sky-blue:   #009bf3;
+    --navy-blue:  #1e3a8a;
+    --dark-blue:  #1d3557;
+    --yellow:     #ffd23f;
+    --green:      #2ec4b6;
+    --purple:     #8b5cf6;
+    --pink:       #ec4899;
+  }
+
+  body {
+    background-color: #f3f6fa;
+    color: #1e293b;
+    font-family: 'Fredoka', 'Quicksand', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+  }
+}
+
+/* Fonts */
+.font-fredoka {
+  font-family: 'Fredoka', cursive, sans-serif;
+}
+
+.font-playful {
+  font-family: 'Short Stack', 'Fredoka', cursive, sans-serif;
+}
+
+.font-quicksand {
+  font-family: 'Quicksand', sans-serif;
+}
+
+/* Subtle Dotted Grid Background */
+.bg-dot-grid {
+  background-color: #eef3f8;
+  background-image: radial-gradient(#cbd5e1 1.5px, transparent 1.5px);
+  background-size: 16px 16px;
+}
+
+/* GiantTouchableLetter styling */
+.giant-letter {
+  background: #ffffff;
+  color: #0f172a;
+  border: 3px solid #009bf3;
+  border-radius: 1.25rem;
+  box-shadow: 0 6px 0 #009bf3;
+  transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.giant-letter:hover {
+  transform: translateY(-3px) scale(1.04);
+  box-shadow: 0 10px 0 #009bf3;
+  background: #f0f9ff;
+}
+
+.giant-letter:active, .giant-letter.active {
+  transform: translateY(3px) scale(0.98);
+  box-shadow: 0 2px 0 #009bf3;
+  background: #ffd23f;
+  border-color: #d97706;
+  color: #0f172a;
+}
+
+/* Confetti victory bounce */
+@keyframes rebote-victoria {
+  0%   { transform: scale(0.4); opacity: 0; }
+  60%  { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-rebote {
+  animation: rebote-victoria 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #009bf3;
+  border-radius: 9999px;
+}
+
