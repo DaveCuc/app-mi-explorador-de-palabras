@@ -6,9 +6,15 @@ from typing import List, Optional
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import requests
+from dotenv import load_dotenv
 import ollama
 
-app = FastAPI(title="El Explorador de Palabras - Gemma 4 Vision Real Backend")
+# Load environment variables from root or backend directory .env file
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "../../.env"))
+load_dotenv()
+
+app = FastAPI(title="El Explorador de Palabras - Gemma 4 Vision Backend")
 
 app.add_middleware(
     CORSMiddleware,
@@ -18,7 +24,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MODELO = "gemma4:e2b"
+MODELO_OLLAMA = os.getenv("OLLAMA_MODEL", "gemma4:e2b")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+GEMMA_MODEL = os.getenv("GEMMA_MODEL", "gemma-4-31b-it")
+USE_OLLAMA_FALLBACK = os.getenv("USE_OLLAMA_FALLBACK", "false").lower() == "true"
 
 SYSTEM_ANALISIS_LECTOESCRITURA = """Eres un experto sistema de visión multimodal basado en Gemma 4 para la enseñanza de lectoescritura en español.
 Tu tarea es examinar la foto recibida e identificar CUALQUIER OBJETO REAL Y CONCRETO que aparezca claramente en ella (por ejemplo: CELULAR, TELEFONO, TECLADO, RATON, LAPTOP, TAZA, BOTELLA, VASO, RELOJ, ZAPATO, PLUMA, CUADERNO, MOCHILA, SILLA, MESA, PUERTA, MANZANA, PLANTA, ESFERO, etc.).
@@ -77,20 +86,92 @@ def separar_silabas_fallback(palabra: str) -> List[str]:
             silabas.append(actual)
     return silabas if silabas else [palabra]
 
-def procesar_con_gemma4(imagen_b64_raw: str) -> RespuestaPalabra:
-    if not imagen_b64_raw or len(imagen_b64_raw.strip()) == 0:
-        raise HTTPException(status_code=400, detail="No se recibio ninguna imagen Base64.")
+def parsear_y_estructurar_respuesta(content: str) -> RespuestaPalabra:
+    try:
+        data = parsear_json_limpio(content)
+        palabra = data.get("palabra_completa", "").strip().upper()
+        palabra = re.sub(r'[^A-ZÑ]', '', palabra)
+        
+        if not palabra:
+            raise ValueError("Palabra no valida")
 
-    clean_b64 = imagen_b64_raw
-    if "," in clean_b64:
-        clean_b64 = clean_b64.split(",")[1]
+        objeto_desc = data.get("objeto_detectado", f"un {palabra.lower()}")
+        silabas = data.get("silabas")
+        if not silabas or not isinstance(silabas, list):
+            silabas = separar_silabas_fallback(palabra)
+        
+        letras = [char for char in palabra]
 
-    clean_b64 = clean_b64.strip()
-    print(f"[INFO] Enviando foto Base64 ({len(clean_b64)} chars) a Gemma 4...")
+        return RespuestaPalabra(
+            objeto_detectado=objeto_desc,
+            palabra_completa=palabra,
+            silabas=silabas,
+            letras=letras
+        )
+    except Exception as json_err:
+        print(f"[WARN] Fallback parse regex: {json_err}")
+        palabras_coincidentes = re.findall(r'\b[A-ZÑ]{3,15}\b', content.upper())
+        if palabras_coincidentes:
+            p = palabras_coincidentes[0]
+            return RespuestaPalabra(
+                objeto_detectado=f"un {p.lower()}",
+                palabra_completa=p,
+                silabas=separar_silabas_fallback(p),
+                letras=[c for c in p]
+            )
+        raise HTTPException(
+            status_code=422,
+            detail="Gemma 4 no pudo distinguir un objeto claro en la foto. Por favor acerca la cámara al objeto y asegúrate de tener buena luz."
+        )
 
+def procesar_con_google_ai_studio(clean_b64: str, api_key: str, model_name: str) -> RespuestaPalabra:
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+    
+    payload = {
+        "systemInstruction": {
+            "parts": [{"text": SYSTEM_ANALISIS_LECTOESCRITURA}]
+        },
+        "contents": [
+            {
+                "parts": [
+                    {"text": "¿Qué objeto principal hay en esta foto? Analízalo para lectoescritura."},
+                    {
+                        "inline_data": {
+                            "mime_type": "image/jpeg",
+                            "data": clean_b64
+                        }
+                    }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.1,
+            "responseMimeType": "application/json"
+        }
+    }
+
+    print(f"[INFO] Enviando foto a Google AI Studio API Key (Modelo: {model_name})...")
+    res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=30)
+    
+    if not res.ok:
+        err_detail = f"Error en Google AI Studio API ({res.status_code}): {res.text}"
+        print(f"[ERROR] {err_detail}")
+        raise HTTPException(status_code=res.status_code, detail=err_detail)
+    
+    data = res.json()
+    try:
+        content = data["candidates"][0]["content"]["parts"][0]["text"]
+        print(f"[SUCCESS] Respuesta recibida exitosamente desde Google AI Studio.")
+        return parsear_y_estructurar_respuesta(content)
+    except Exception as e:
+        print(f"[ERROR] Error al extraer contenido de la respuesta de Google AI Studio: {e}")
+        raise HTTPException(status_code=422, detail="Formato de respuesta no esperado desde Google AI Studio.")
+
+def procesar_con_ollama(clean_b64: str) -> RespuestaPalabra:
+    print(f"[INFO] Enviando foto Base64 ({len(clean_b64)} chars) a Ollama Local ({MODELO_OLLAMA})...")
     try:
         response = ollama.chat(
-            model=MODELO,
+            model=MODELO_OLLAMA,
             messages=[
                 {"role": "system", "content": SYSTEM_ANALISIS_LECTOESCRITURA},
                 {
@@ -103,60 +184,46 @@ def procesar_con_gemma4(imagen_b64_raw: str) -> RespuestaPalabra:
         )
 
         content = response["message"]["content"]
-        print(f"[SUCCESS] Respuesta de Gemma 4 recibida correctamente.")
-
-        try:
-            data = parsear_json_limpio(content)
-            palabra = data.get("palabra_completa", "").strip().upper()
-            palabra = re.sub(r'[^A-ZÑ]', '', palabra)
-            
-            if not palabra:
-                raise ValueError("Palabra no valida")
-
-            objeto_desc = data.get("objeto_detectado", f"un {palabra.lower()}")
-            silabas = data.get("silabas")
-            if not silabas or not isinstance(silabas, list):
-                silabas = separar_silabas_fallback(palabra)
-            
-            letras = [char for char in palabra]
-
-            return RespuestaPalabra(
-                objeto_detectado=objeto_desc,
-                palabra_completa=palabra,
-                silabas=silabas,
-                letras=letras
-            )
-        except Exception as json_err:
-            print(f"[WARN] Fallback parse regex: {json_err}")
-            palabras_coincidentes = re.findall(r'\b[A-ZÑ]{3,15}\b', content.upper())
-            if palabras_coincidentes:
-                p = palabras_coincidentes[0]
-                return RespuestaPalabra(
-                    objeto_detectado=f"un {p.lower()}",
-                    palabra_completa=p,
-                    silabas=separar_silabas_fallback(p),
-                    letras=[c for c in p]
-                )
-            raise HTTPException(
-                status_code=422,
-                detail="Gemma 4 no pudo distinguir un objeto claro en la foto. Por favor acerca la cámara al objeto y asegúrate de tener buena luz."
-            )
+        print(f"[SUCCESS] Respuesta de Ollama local recibida correctamente.")
+        return parsear_y_estructurar_respuesta(content)
 
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[ERROR] Error en Ollama Gemma 4: {e}")
+        print(f"[ERROR] Error en Ollama Gemma local: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Error en el modelo Gemma 4 local: {str(e)}"
+            detail=f"Error en el modelo local Ollama: {str(e)}"
         )
+
+def procesar_con_gemma4(imagen_b64_raw: str) -> RespuestaPalabra:
+    if not imagen_b64_raw or len(imagen_b64_raw.strip()) == 0:
+        raise HTTPException(status_code=400, detail="No se recibió ninguna imagen Base64.")
+
+    clean_b64 = imagen_b64_raw
+    if "," in clean_b64:
+        clean_b64 = clean_b64.split(",")[1]
+    clean_b64 = clean_b64.strip()
+
+    # Re-check API key at runtime in case environment updated
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    use_api = bool(api_key and api_key.strip() and not api_key.startswith("tu_api_key")) and not USE_OLLAMA_FALLBACK
+
+    if use_api:
+        return procesar_con_google_ai_studio(clean_b64, api_key.strip(), GEMMA_MODEL)
+    else:
+        return procesar_con_ollama(clean_b64)
 
 @app.get("/")
 def read_root():
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    has_api_key = bool(api_key and api_key.strip() and not api_key.startswith("tu_api_key"))
     return {
         "status": "online",
         "app": "El Explorador de Palabras",
-        "model": MODELO
+        "provider": "Google AI Studio API" if has_api_key else "Ollama Local",
+        "model": GEMMA_MODEL if has_api_key else MODELO_OLLAMA,
+        "has_api_key": has_api_key
     }
 
 @app.post("/api/descubrir-palabra", response_model=RespuestaPalabra)
