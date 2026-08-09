@@ -16,7 +16,7 @@ Lecciones prácticas dirigidas a principiantes para lograr un objetivo de aprend
 Instrucciones paso a paso para resolver un problema o configurar una tarea específica.
 - ⚡ **[Configurar Ollama Local con Gemma 4](./02-how-to/configurar-ollama-local.md)**: Cómo iniciar y verificar el motor de inferencia local por GPU.
 - 🧠 **[Inspeccionar el Pensamiento Interno en F12](./02-how-to/inspeccionar-pensamiento-f12.md)**: Guía para habilitar `MOSTRAR_PENSAMIENTO=true` y ver la consola DevTools.
-- 💻 **[Ejecutar en Modo Escritorio (Electron)](./02-how-to/ejecutar-modo-electron.md)**: Instrucciones para compilar y ejecutar la shell nativa de escritorio.
+
 
 ### 🔬 3. Referencia Técnica *(Orientada a Información)*
 Descripción técnica detallada de la arquitectura, esquemas de datos, APIs y configuraciones.

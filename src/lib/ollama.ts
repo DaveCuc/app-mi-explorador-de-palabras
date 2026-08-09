@@ -13,25 +13,15 @@ export interface OllamaStatus {
   models: string[];
 }
 
-// Fallback direct fetch client if running in web browser mode instead of Electron window
+// Fetch client for local Ollama server status
 export async function fetchOllamaStatus(): Promise<OllamaStatus> {
-  if (typeof window !== 'undefined' && window.electronAPI) {
-    const status = await window.electronAPI.checkOllamaStatus();
-    const models = await window.electronAPI.listModels();
-    return {
-      online: status.online,
-      version: status.version,
-      models: models.map((m) => m.name),
-    };
-  }
-
   try {
     const res = await fetch('http://localhost:11434/api/tags');
     if (!res.ok) throw new Error('Ollama offline');
     const data = await res.json();
     return {
       online: true,
-      version: '0.32.5',
+      version: '0.32.6',
       models: data.models?.map((m: { name: string }) => m.name) || [],
     };
   } catch {

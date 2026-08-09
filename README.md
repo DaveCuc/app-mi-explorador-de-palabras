@@ -1,6 +1,6 @@
 # Mi Explorador de Palabras 🎈
 
-Aplicación educativa interactiva construida con **Next.js 16 (App Router)**, **React 19** y **Electron**, diseñada para ayudar a los niños a descubrir objetos del mundo real y aprender fonética, letras y sílabas mediante visión por computadora asistida por **Gemma 4**.
+Aplicación educativa interactiva construida con **Next.js 16 (App Router)** y **React 19**, diseñada para ayudar a los niños a descubrir objetos del mundo real y aprender fonética, letras y sílabas mediante visión por computadora asistida por **Gemma 4**.
 
 > [!NOTE]
 > Esta aplicación combina captura multimedia en tiempo real, síntesis fonética por voz y juegos de desafío para fomentar el aprendizaje temprano de lectura y escritura.
@@ -13,7 +13,7 @@ Aplicación educativa interactiva construida con **Next.js 16 (App Router)**, **
 - 🧠 **Análisis de Objetos con Gemma 4**: Conexión con modelo local/backend para detectar objetos en imágenes y devolver la palabra, división silábica y desglose de letras.
 - 🔊 **Síntesis Fonética y Deletreo**: Reproducción de sonidos individuales por letra (fonemas) y lectura pausada de palabras completas.
 - 🎮 **Desafíos Interactivos y Gamificación**: Sistema de puntos, insignias y minijuegos de búsqueda de letras ("¿Puedes encontrar la letra A?").
-- 💻 **Multiplataforma (Web & Desktop)**: Ejecución flexible tanto en navegador web como en aplicación de escritorio nativa mediante **Electron**.
+- 💻 **Web Nativa**: Ejecución fluida en cualquier navegador web moderno.
 - ⚙️ **CI/CD Integrado**: Validación automática de linting y compilación TypeScript en cada actualización con **GitHub Actions**.
 
 ---
@@ -21,7 +21,6 @@ Aplicación educativa interactiva construida con **Next.js 16 (App Router)**, **
 ## 🛠️ Tecnologías Utilizadas
 
 - **Framework Web**: [Next.js 16](https://nextjs.org/) (App Router & Turbopack) + [React 19](https://react.dev/)
-- **Escritorio**: [Electron 43](https://www.electronjs.org/)
 - **Estilos**: [Tailwind CSS v4](https://tailwindcss.com/) + [Lucide React Icons](https://lucide.dev/)
 - **Lenguaje**: TypeScript
 - **Integración CI/CD**: GitHub Actions
@@ -32,7 +31,7 @@ Aplicación educativa interactiva construida con **Next.js 16 (App Router)**, **
 
 ```mermaid
 flowchart TD
-    subgraph Client ["💻 Capa de Cliente (Electron / Next.js)"]
+    subgraph Client ["💻 Capa de Cliente (Next.js 16 / React 19)"]
         UI["📸 CameraView Component"] -->|Imagen Base64| Frontend["React 19 / Next.js 16"]
         Frontend -->|Lectura de Fonemas y Sílabas| Speaker["🔊 Web Speech API (es-MX)"]
         Console["🧠 F12 Developer Console"] <==|MOSTRAR_PENSAMIENTO| Frontend
@@ -62,7 +61,7 @@ flowchart TD
 Toda la documentación detallada del proyecto está organizada bajo el marco **[Diátaxis](file:///C:/Users/davec/Projects/hackday/documentation/README.md)** en la carpeta [`documentation/`](file:///C:/Users/davec/Projects/hackday/documentation/README.md):
 
 - 🎓 **[Tutoriales](file:///C:/Users/davec/Projects/hackday/documentation/01-tutorials/primer-descubrimiento.md)**: Guía de aprendizaje paso a paso para capturar tu primer objeto.
-- 📖 **[Guías de Uso (How-To)](file:///C:/Users/davec/Projects/hackday/documentation/02-how-to/configurar-ollama-local.md)**: Recetas prácticas para configurar Ollama, activar el modo pensamiento (F12) o ejecutar Electron.
+- 📖 **[Guías de Uso (How-To)](file:///C:/Users/davec/Projects/hackday/documentation/02-how-to/configurar-ollama-local.md)**: Recetas prácticas para configurar Ollama o activar el modo pensamiento (F12).
 - 🔬 **[Referencia Técnica](file:///C:/Users/davec/Projects/hackday/documentation/03-reference/api-endpoints.md)**: Diccionario técnico de endpoints, esquemas JSON y variables `.env`.
 - 🧠 **[Explicación y Arquitectura](file:///C:/Users/davec/Projects/hackday/documentation/04-explanation/arquitectura-y-pipeline.md)**: Análisis a fondo del diseño del pipeline multimodal y diagramas de flujo.
 
@@ -80,7 +79,7 @@ Toda la documentación detallada del proyecto está organizada bajo el marco **[
 
 ### 2. Instalación de Dependencias
 
-1. **Instalar dependencias del proyecto Frontend / Electron**:
+1. **Instalar dependencias del proyecto Frontend**:
    ```bash
    npm install
    ```
@@ -107,7 +106,7 @@ USE_OLLAMA_FALLBACK=true
 MOSTRAR_PENSAMIENTO=true
 ```
 
-> 💡 **Tip de Depuración**: Al presionar **F12** en el navegador o aplicación Electron, la pestaña **Console** mostrará en tiempo real el pensamiento interno de Gemma 4 si `MOSTRAR_PENSAMIENTO=true` está activado.
+> 💡 **Tip de Depuración**: Al presionar **F12** en el navegador, la pestaña **Console** mostrará en tiempo real el pensamiento interno de Gemma 4 si `MOSTRAR_PENSAMIENTO=true` está activado.
 
 ---
 
@@ -127,16 +126,11 @@ python -m uvicorn agent.backend.main:app --reload --port 8000
 ```
 > *(Este servidor recibe las fotos enviadas por la cámara y las procesa con Gemma 4).*
 
-#### **Paso 4.3: Iniciar la Aplicación de Escritorio o Web** (Terminal 3)
-- **Modo Aplicación de Escritorio (Electron + Web)**:
-  ```bash
-  npm run dev
-  ```
-- **Modo Navegador Web (Next.js solo)**:
-  ```bash
-  npm run dev:next
-  ```
-  *(Disponible en [http://localhost:3000](http://localhost:3000)).*
+#### **Paso 4.3: Iniciar la Aplicación Web (Next.js)** (Terminal 3)
+```bash
+npm run dev
+```
+*(Abre [http://localhost:3000](http://localhost:3000) en tu navegador).*
 
 ---
 
