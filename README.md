@@ -28,6 +28,46 @@ Aplicación educativa interactiva construida con **Next.js 16 (App Router)**, **
 
 ---
 
+## 🏗️ Arquitectura del Sistema
+
+```mermaid
+flowchart TD
+    subgraph Client ["💻 Capa de Cliente (Electron / Next.js)"]
+        UI["📸 CameraView Component"] -->|Imagen Base64| Frontend["React 19 / Next.js 16"]
+        Frontend -->|Lectura de Fonemas y Sílabas| Speaker["🔊 Web Speech API (es-MX)"]
+        Console["🧠 F12 Developer Console"] <==|MOSTRAR_PENSAMIENTO| Frontend
+    end
+
+    subgraph Backend ["⚡ Servidor Python FastAPI (:8000)"]
+        API["/api/descubrir-palabra"] --> Preprocess["Sanitizador & Decodificador Base64"]
+        Preprocess --> Strategy{"¿Proveedor Local o Cloud?"}
+        
+        Strategy -->|USE_OLLAMA_FALLBACK=true| OllamaEngine["Ollama GPU Engine (:11434)<br>gemma4:e2b"]
+        Strategy -->|GEMINI_API_KEY activa| GeminiCloud["Google AI Studio API<br>gemma-4-31b-it"]
+        
+        OllamaEngine --> Extract["Extractor <think> + Parser JSON Regex"]
+        GeminiCloud --> Extract
+        
+        Extract --> Response["Respuesta Pydantic (WordData)"]
+    end
+
+    Frontend -->|POST /api/descubrir-palabra| API
+    Response -->|JSON (palabra, silabas, letras, pensamiento)| Frontend
+```
+
+---
+
+## 📚 Documentación Estructurada (Diátaxis)
+
+Toda la documentación detallada del proyecto está organizada bajo el marco **[Diátaxis](file:///C:/Users/davec/Projects/hackday/documentation/README.md)** en la carpeta [`documentation/`](file:///C:/Users/davec/Projects/hackday/documentation/README.md):
+
+- 🎓 **[Tutoriales](file:///C:/Users/davec/Projects/hackday/documentation/01-tutorials/primer-descubrimiento.md)**: Guía de aprendizaje paso a paso para capturar tu primer objeto.
+- 📖 **[Guías de Uso (How-To)](file:///C:/Users/davec/Projects/hackday/documentation/02-how-to/configurar-ollama-local.md)**: Recetas prácticas para configurar Ollama, activar el modo pensamiento (F12) o ejecutar Electron.
+- 🔬 **[Referencia Técnica](file:///C:/Users/davec/Projects/hackday/documentation/03-reference/api-endpoints.md)**: Diccionario técnico de endpoints, esquemas JSON y variables `.env`.
+- 🧠 **[Explicación y Arquitectura](file:///C:/Users/davec/Projects/hackday/documentation/04-explanation/arquitectura-y-pipeline.md)**: Análisis a fondo del diseño del pipeline multimodal y diagramas de flujo.
+
+---
+
 ## 🚀 Guía Paso a Paso para Ejecutar la Aplicación
 
 ### 1. Requisitos Previos
