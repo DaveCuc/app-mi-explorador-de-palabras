@@ -31,27 +31,57 @@ Aplicación educativa interactiva construida con **Next.js 16 (App Router)** y *
 
 ```mermaid
 flowchart TD
-    subgraph Client ["💻 Capa de Cliente (Next.js 16 / React 19)"]
-        UI["📸 CameraView Component"] -->|Imagen Base64| Frontend["React 19 / Next.js 16"]
-        Frontend -->|Lectura de Fonemas y Sílabas| Speaker["🔊 Web Speech API (es-MX)"]
-        Console["🧠 F12 Developer Console"] <==|MOSTRAR_PENSAMIENTO| Frontend
+    subgraph ClientLayer ["💻 Capa de Cliente (Next.js 16 / React 19)"]
+        UI["📸 CameraView Component"]
+        Logic["React 19 / Next.js 16"]
+        Speech["🔊 Web Speech API (es-MX)"]
+        Console["🧠 F12 Developer Console"]
+        
+        UI -->|Imagen Base64| Logic
+        Logic -->|Lectura Fonemas/Sílabas| Speech
+        Logic -.->|MOSTRAR_PENSAMIENTO| Console
     end
 
-    subgraph Backend ["⚡ Servidor Python FastAPI (:8000)"]
-        API["/api/descubrir-palabra"] --> Preprocess["Sanitizador & Decodificador Base64"]
-        Preprocess --> Strategy{"¿Proveedor Local o Cloud?"}
+    subgraph BackendLayer ["⚡ Servidor Python FastAPI (:8000)"]
+        API["/api/descubrir-palabra"]
+        Preprocess["Sanitizador & Decodificador Base64"]
+        Strategy{"¿Proveedor Local o Cloud?"}
         
-        Strategy -->|USE_OLLAMA_FALLBACK=true| OllamaEngine["Ollama GPU Engine (:11434)<br>gemma4:e2b"]
-        Strategy -->|GEMINI_API_KEY activa| GeminiCloud["Google AI Studio API<br>gemma-4-31b-it"]
+        subgraph Engines ["Motores de Inferencia"]
+            Ollama["Ollama GPU Engine (:11434)\ngemma4:e2b"]
+            Gemini["Google AI Studio API\ngemma-4-31b-it"]
+        end
         
-        OllamaEngine --> Extract["Extractor <think> + Parser JSON Regex"]
-        GeminiCloud --> Extract
+        Parser["Extractor think + Parser JSON Regex"]
+        Pydantic["Respuesta Pydantic (WordData)"]
         
-        Extract --> Response["Respuesta Pydantic (WordData)"]
+        API --> Preprocess
+        Preprocess --> Strategy
+        Strategy -->|USE_OLLAMA_FALLBACK=true| Ollama
+        Strategy -->|GEMINI_API_KEY activa| Gemini
+        Ollama --> Parser
+        Gemini --> Parser
+        Parser --> Pydantic
     end
 
-    Frontend -->|POST /api/descubrir-palabra| API
-    Response -->|JSON (palabra, silabas, letras, pensamiento)| Frontend
+    %% 1. Enlace invisible para forzar orden vertical estricto
+    ClientLayer ~~~ BackendLayer
+
+    %% 2. Flecha de 3 guiones para incrementar longitud y peso descendente
+    Logic --->|POST Request| API
+    
+    %% 3. Ciclo de retorno evaluado con menor prioridad
+    Pydantic -.->|JSON Response| Logic
+
+    %% Styling
+    style ClientLayer fill:#f0f4f8,stroke:#2c3e50,stroke-width:2px
+    style BackendLayer fill:#fff4e6,stroke:#d35400,stroke-width:2px
+    style Engines fill:#fff,stroke:#7f8c8d,stroke-dasharray: 5 5
+    style UI fill:#e8f5e9,stroke:#2e7d32
+    style Logic fill:#e3f2fd,stroke:#1565c0
+    style API fill:#f3e5f5,stroke:#7b1fa2
+    style Strategy fill:#fff9c4,stroke:#fbc02d
+    style Console fill:#eceff1,stroke:#455a64
 ```
 
 ---
