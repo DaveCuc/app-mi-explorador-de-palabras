@@ -42,3 +42,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# agent scaffolding, blueprints and prompt files
+blueprint.md
+new-blueprint.md
+*blueprint*.md
+CLAUDE.md
+AGENTS.md
+skills-lock.json
+RESUMEN_ACTUALIZACION_GEMMA4.md
+.agents/
+.claude/
+.signals/
+.brain/
+
