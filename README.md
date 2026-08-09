@@ -28,40 +28,79 @@ Aplicación educativa interactiva construida con **Next.js 16 (App Router)**, **
 
 ---
 
-## 🚀 Guía de Inicio Rápido
+## 🚀 Guía Paso a Paso para Ejecutar la Aplicación
 
-### Requisitos Previos
+### 1. Requisitos Previos
 
-- [Node.js 20.x](https://nodejs.org/) o superior
-- `npm` v10 o superior
+- [Node.js 20.x](https://nodejs.org/) o superior y `npm` v10+
+- [Python 3.10+](https://www.python.org/) para el backend de análisis visual
+- [Ollama](https://ollama.com/) instalado en el sistema
 
-### Instalación
+---
 
-1. Clona este repositorio:
-   ```bash
-   git clone https://github.com/tu-usuario/hackday.git
-   cd hackday
-   ```
+### 2. Instalación de Dependencias
 
-2. Instala las dependencias:
+1. **Instalar dependencias del proyecto Frontend / Electron**:
    ```bash
    npm install
    ```
 
-### Desarrollo Local
+2. **Instalar dependencias del Backend de Python**:
+   ```bash
+   pip install -r agent/backend/requirements.txt
+   ```
 
-- **Modo Next.js (Web)**:
-  ```bash
-  npm run dev:next
-  ```
-  Abre [http://localhost:3000](http://localhost:3000) en tu navegador.
+---
 
-- **Modo Híbrido (Web + Electron)**:
+### 3. Configuración de Variables de Entorno (`.env`)
+
+Crea un archivo `.env` en la raíz del proyecto (o copia `.env.example`) con la siguiente configuración para forzar el uso de Ollama Local:
+
+```env
+# Modelo seleccionado para Ollama Local
+OLLAMA_MODEL=gemma4:e2b
+
+# Forzar el uso del motor local Ollama en lugar de la API en la nube
+USE_OLLAMA_FALLBACK=true
+
+# Mostrar razonamiento/pensamiento interno de Gemma 4 en consola (F12)
+MOSTRAR_PENSAMIENTO=true
+```
+
+> 💡 **Tip de Depuración**: Al presionar **F12** en el navegador o aplicación Electron, la pestaña **Console** mostrará en tiempo real el pensamiento interno de Gemma 4 si `MOSTRAR_PENSAMIENTO=true` está activado.
+
+---
+
+### 4. Secuencia de Inicio (3 Pasos Necesarios)
+
+Para que la aplicación funcione al 100%, debes tener corriendo los siguientes 3 servicios:
+
+#### **Paso 4.1: Iniciar el Servidor de Ollama** (Terminal 1)
+```bash
+ollama serve
+```
+> *(Descarga el modelo si no lo tienes instalado ejecutando: `ollama pull gemma4:e2b`).*
+
+#### **Paso 4.2: Iniciar el Backend de Visión en Python** (Terminal 2)
+```bash
+python -m uvicorn agent.backend.main:app --reload --port 8000
+```
+> *(Este servidor recibe las fotos enviadas por la cámara y las procesa con Gemma 4).*
+
+#### **Paso 4.3: Iniciar la Aplicación de Escritorio o Web** (Terminal 3)
+- **Modo Aplicación de Escritorio (Electron + Web)**:
   ```bash
   npm run dev
   ```
+- **Modo Navegador Web (Next.js solo)**:
+  ```bash
+  npm run dev:next
+  ```
+  *(Disponible en [http://localhost:3000](http://localhost:3000)).*
 
-### Verificación y Build de Producción
+---
+
+### 🛠️ Verificación y Build de Producción
 
 - **Verificar Linting**:
   ```bash

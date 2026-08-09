@@ -26,6 +26,7 @@ interface WordData {
   palabra_completa: string;
   silabas: string[];
   letras: string[];
+  pensamiento?: string;
 }
 
 export default function WordExplorerApp() {
@@ -89,15 +90,35 @@ export default function WordExplorerApp() {
         throw new Error('Gemma no devolvió una palabra válida.');
       }
 
+      if (data.pensamiento) {
+        console.log(
+          '%c🧠 [PENSAMIENTO DE GEMMA 4 - CONSOLA F12]',
+          'color: #a855f7; font-size: 13px; font-weight: bold; background: #1e1b4b; padding: 4px 8px; border-radius: 4px;'
+        );
+        console.log(data.pensamiento);
+      } else {
+        console.log(
+          '%cℹ️ [GEMMA 4] Respuesta procesada. (Para ver el pensamiento interno en F12, activa MOSTRAR_PENSAMIENTO=true en .env)',
+          'color: #38bdf8; font-size: 11px;'
+        );
+      }
+
       setWordData(data);
       setPoints((prev) => prev + 10);
       setCelebrationMsg(`¡SÚPER, LO LOGRASTE! 🎉`);
       if (audioUnlocked) speakWord(`¡Súper, lo lograste! Encontramos la palabra ${data.palabra_completa}`);
     } catch (err) {
       console.error('Error enviando imagen a Gemma:', err);
-      setErrorMessage(
-        `Error al comunicar con Gemma: ${(err as Error).message}`
-      );
+      const msg = (err as Error).message || '';
+      if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+        setErrorMessage(
+          'No se pudo conectar con el backend en el puerto 8000. Por favor inicia el servidor backend ejecutando: python -m uvicorn agent.backend.main:app --reload --port 8000'
+        );
+      } else {
+        setErrorMessage(
+          `Error al comunicar con Gemma: ${msg}`
+        );
+      }
     } finally {
       setIsAnalyzing(false);
     }

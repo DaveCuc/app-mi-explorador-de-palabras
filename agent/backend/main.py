@@ -42,6 +42,7 @@ MODELO_OLLAMA = os.getenv("OLLAMA_MODEL", "gemma4:e2b")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 GEMMA_MODEL = os.getenv("GEMMA_MODEL", "gemma-4-31b-it")
 USE_OLLAMA_FALLBACK = os.getenv("USE_OLLAMA_FALLBACK", "false").lower() == "true"
+MOSTRAR_PENSAMIENTO = os.getenv("MOSTRAR_PENSAMIENTO", "false").lower() == "true"
 
 SYSTEM_ANALISIS_LECTOESCRITURA = """Eres un experto sistema de visión multimodal basado en Gemma 4 para la enseñanza de lectoescritura en español.
 Tu tarea es examinar la foto recibida e identificar CUALQUIER OBJETO REAL Y CONCRETO que aparezca claramente en ella (por ejemplo: CELULAR, TELEFONO, TECLADO, RATON, LAPTOP, TAZA, BOTELLA, VASO, RELOJ, ZAPATO, PLUMA, CUADERNO, MOCHILA, SILLA, MESA, PUERTA, MANZANA, PLANTA, ESFERO, etc.).
@@ -51,6 +52,7 @@ Reglas fundamentales:
 2. Escribe la palabra en ESPAÑOL, en MAYÚSCULAS y sin tildes ni caracteres especiales.
 3. Separa la palabra en sus sílabas gramaticales correctas.
 4. Entrega la lista de letras individuales que conforman la palabra.
+5. Mantén tu razonamiento interno de forma concisa y directa para generar rápidamente el JSON.
 
 Responde ÚNICAMENTE con la estructura JSON requerida sin markdown:
 {
@@ -65,6 +67,7 @@ class RespuestaPalabra(BaseModel):
     palabra_completa: str
     silabas: List[str]
     letras: List[str]
+    pensamiento: Optional[str] = None
 
 class RequestBase64(BaseModel):
     imagen_b64: str
@@ -151,13 +154,15 @@ def separar_silabas_fallback(palabra: str) -> List[str]:
             silabas.append(actual)
     return silabas if silabas else [palabra]
 
-def parsear_y_estructurar_respuesta(content: str) -> RespuestaPalabra:
+def parsear_y_estructurar_respuesta(content: str, pensamiento: Optional[str] = None) -> RespuestaPalabra:
     if not content or not content.strip():
         logger.error("[ERROR PARSE] Se recibió contenido vacío de Gemma 4.")
         raise HTTPException(
             status_code=422,
             detail="Gemma 4 no devolvió texto en la respuesta."
         )
+
+    pensamiento_final = pensamiento if MOSTRAR_PENSAMIENTO else None
 
     # 1. Intentar parsear como JSON estructurado
     try:
@@ -173,7 +178,8 @@ def parsear_y_estructurar_respuesta(content: str) -> RespuestaPalabra:
                 objeto_detectado=objeto_desc,
                 palabra_completa=palabra,
                 silabas=silabas,
-                letras=[c for c in palabra]
+                letras=[c for c in palabra],
+                pensamiento=pensamiento_final
             )
     except Exception as json_err:
         logger.warning(f"[WARN PARSE] No se pudo parsear JSON directo ({json_err}). Aplicando extracción por expresiones regulares...")
@@ -193,7 +199,8 @@ def parsear_y_estructurar_respuesta(content: str) -> RespuestaPalabra:
             objeto_detectado=f"un {p.lower()}",
             palabra_completa=p,
             silabas=separar_silabas_fallback(p),
-            letras=[c for c in p]
+            letras=[c for c in p],
+            pensamiento=pensamiento_final
         )
 
     if palabras_coincidentes:
@@ -203,7 +210,8 @@ def parsear_y_estructurar_respuesta(content: str) -> RespuestaPalabra:
             objeto_detectado=f"un {p.lower()}",
             palabra_completa=p,
             silabas=separar_silabas_fallback(p),
-            letras=[c for c in p]
+            letras=[c for c in p],
+            pensamiento=pensamiento_final
         )
 
     logger.error(f"[ERROR PARSE] Imposible extraer ninguna palabra válida del contenido: '{content}'")
@@ -332,7 +340,13 @@ def procesar_con_google_ai_studio(clean_b64: str, mime_type: str, api_key: str, 
             logger.error(f"[ERROR GOOGLE AI STUDIO] No se encontraron 'parts' en candidate: {json.dumps(candidate)}")
             raise HTTPException(status_code=422, detail="Estructura inesperada en el contenido devuelto por Google AI Studio.")
 
-        # Filtrar partes de razonamiento interno ('thought': True) de Gemma 4 para obtener la respuesta de texto final
+        # Extraer partes de razonamiento interno ('thought': True) de Gemma 4
+        thought_parts = [p.get("text", "") for p in content_parts if p.get("thought", False) and "text" in p]
+        pensamiento_texto = "\n".join(thought_parts).strip() if thought_parts else None
+
+        if pensamiento_texto and MOSTRAR_PENSAMIENTO:
+            logger.info(f"🧠 [PENSAMIENTO GEMMA 4 API]\n{pensamiento_texto}")
+
         non_thought_parts = [p for p in content_parts if not p.get("thought", False) and "text" in p]
         if non_thought_parts:
             content_text = non_thought_parts[-1]["text"]
@@ -342,7 +356,7 @@ def procesar_con_google_ai_studio(clean_b64: str, mime_type: str, api_key: str, 
             raise HTTPException(status_code=422, detail="No se encontró texto en las partes del candidate de Gemma 4.")
 
         logger.info(f"[SUCCESS GOOGLE AI STUDIO] Texto procesado recibido ({len(content_text)} chars): {content_text}")
-        return parsear_y_estructurar_respuesta(content_text)
+        return parsear_y_estructurar_respuesta(content_text, pensamiento=pensamiento_texto)
 
     except HTTPException:
         raise
@@ -370,7 +384,8 @@ def procesar_con_ollama(clean_b64: str) -> RespuestaPalabra:
             ],
             options={
                 "temperature": 0.1,
-                "num_predict": 512,
+                "top_p": 0.9,
+                "num_predict": 1536,  # Aumentado para dar espacio suficiente a razonamiento + JSON completo
                 "num_ctx": 4096,
                 "num_gpu": 99  # Aceleración GPU NVIDIA CUDA (RTX 5070)
             }
@@ -379,30 +394,46 @@ def procesar_con_ollama(clean_b64: str) -> RespuestaPalabra:
         raw_content = response["message"]["content"]
         logger.info(f"[OLLAMA LOCAL] Respuesta cruda recibida ({len(raw_content)} chars): '{raw_content}'")
 
-        # Eliminar etiquetas de pensamiento interno <think>...</think> si existen
-        clean_content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
+        # Extraer pensamiento interno si existe en etiquetas <think>...</think> (cerradas o incompletas)
+        pensamiento_match = re.search(r'<think>(.*?)(?:</think>|$)', raw_content, flags=re.DOTALL)
+        pensamiento_texto = pensamiento_match.group(1).strip() if pensamiento_match else None
+
+        if pensamiento_texto and MOSTRAR_PENSAMIENTO:
+            logger.info(f"🧠 [PENSAMIENTO GEMMA 4 OLLAMA]\n{pensamiento_texto}")
+
+        # 1. Intentar limpiar cualquier bloque de pensamiento <think>...</think> o <think>...
+        clean_content = re.sub(r'<think>.*?(?:</think>|$)', '', raw_content, flags=re.DOTALL).strip()
+
+        # 2. Si no hay contenido limpio o no se cerró el pensamiento, extraer directamente la estructura JSON con Regex
+        if not clean_content or "{" not in clean_content:
+            json_match = re.search(r'\{[^{}]*"(?:palabra_completa|objeto_detectado)"[^{}]*\}', raw_content, flags=re.DOTALL)
+            if not json_match:
+                json_match = re.search(r'\{.*\}', raw_content, flags=re.DOTALL)
+            if json_match:
+                clean_content = json_match.group(0).strip()
+                logger.info(f"[OLLAMA RECOVERY] JSON extraído por Regex ({len(clean_content)} chars): {clean_content}")
 
         if not clean_content:
-            logger.warning("[OLLAMA LOCAL] Respuesta inicial vacía. Reintentando con prompt directo en GPU...")
+            logger.warning("[OLLAMA LOCAL] Respuesta vacía tras parsear. Reintentando con prompt directo...")
             response_retry = ollama.chat(
                 model=MODELO_OLLAMA,
                 messages=[
                     {
                         "role": "user",
-                        "content": "¿Qué objeto ves en esta foto? Responde con el nombre del objeto en una sola palabra en mayúsculas en español (ejemplo: CELULAR, TAZA, RELOJ).",
+                        "content": "¿Qué objeto ves en esta foto? Responde ÚNICAMENTE con el objeto en una sola palabra en mayúsculas en español (ejemplo: CELULAR, TAZA, RELOJ).",
                         "images": [clean_b64]
                     }
                 ],
                 options={
                     "temperature": 0.1,
-                    "num_predict": 256,
+                    "num_predict": 512,
                     "num_gpu": 99
                 }
             )
             clean_content = response_retry["message"]["content"].strip()
             logger.info(f"[OLLAMA REINTENTO] Respuesta: '{clean_content}'")
 
-        return parsear_y_estructurar_respuesta(clean_content)
+        return parsear_y_estructurar_respuesta(clean_content, pensamiento=pensamiento_texto)
 
     except HTTPException:
         raise
@@ -439,6 +470,7 @@ def read_root():
         "model": GEMMA_MODEL if (has_api_key and not USE_OLLAMA_FALLBACK) else MODELO_OLLAMA,
         "has_api_key": has_api_key,
         "use_ollama_fallback": USE_OLLAMA_FALLBACK,
+        "mostrar_pensamiento": MOSTRAR_PENSAMIENTO,
         "endpoints": [
             "GET /",
             "GET /api/salud",
